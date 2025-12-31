@@ -1,0 +1,58 @@
+{
+    "name": "gemvc/apm-tracekit",
+    "description": "TraceKit APM provider for GEMVC framework",
+    "type": "library",
+    "license": "MIT",
+    "keywords": [
+      "gemvc",
+      "apm",
+      "tracing",
+      "monitoring",
+      "tracekit"
+    ],
+    "authors": [
+      {
+        "name": "Ali Khorsandfard",
+        "homepage": "https://www.gemvc.de"
+      }
+    ],
+    "homepage": "https://github.com/gemvc/apm-tracekit",
+    "support": {
+      "issues": "https://github.com/gemvc/apm-tracekit/issues",
+      "source": "https://github.com/gemvc/apm-tracekit"
+    },
+    "repository": {
+      "type": "git",
+      "url": "https://github.com/gemvc/apm-tracekit.git"
+    },
+    "require": {
+      "php": ">=8.2",
+      "gemvc/apm-contracts": "^1.0",
+      "gemvc/library": "^5.2"
+    },
+    "require-dev": {
+      "phpstan/phpstan": "^2.1",
+      "phpunit/phpunit": "^10.5"
+    },
+    "autoload": {
+      "psr-4": {
+        "Gemvc\\Core\\Apm\\Providers\\TraceKit\\": "src/"
+      }
+    },
+    "autoload-dev": {
+      "psr-4": {
+        "Gemvc\\Core\\Apm\\Providers\\TraceKit\\Tests\\": "tests/"
+      }
+    },
+    "archive": {
+      "exclude": [
+        "/tests",
+        "/.github",
+        "/.phpunit.cache",
+        "/phpunit.xml",
+        "/phpstan.neon"
+      ]
+    },
+    "minimum-stability": "stable",
+    "prefer-stable": true
+  }
