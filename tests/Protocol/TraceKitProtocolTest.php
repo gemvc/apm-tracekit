@@ -49,7 +49,9 @@ class TraceKitProtocolTest extends TestCase
         $apm = ApmFactory::create($request);
         
         // Factory may return null or instance that's disabled
-        if ($apm !== null) {
+        if ($apm === null) {
+            $this->assertNull($apm);
+        } else {
             $this->assertFalse($apm->isEnabled());
         }
     }

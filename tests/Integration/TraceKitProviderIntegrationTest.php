@@ -84,11 +84,12 @@ class TraceKitProviderIntegrationTest extends TestCase
         $spansProperty->setAccessible(true);
         $spans = $spansProperty->getValue($provider);
         
-        // Find the span we created (not the root span)
+        // Find the span we created by matching span_id
+        $targetSpanId = $span['span_id'] ?? null;
         $spanData = null;
-        foreach ($spans as $span) {
-            if (($span['span_id'] ?? null) === $span['span_id']) {
-                $spanData = $span;
+        foreach ($spans as $spanItem) {
+            if (($spanItem['span_id'] ?? null) === $targetSpanId) {
+                $spanData = $spanItem;
                 break;
             }
         }

@@ -289,8 +289,8 @@ class TraceKitProvider extends AbstractApm
         }
         
         try {
-            // Log only in dev mode to avoid blocking I/O in production
-            if (ProjectHelper::isDevEnvironment()) {
+            // Log only in dev mode to avoid blocking I/O in production (suppress during tests)
+            if (ProjectHelper::isDevEnvironment() && !defined('PHPUNIT_TEST')) {
                 error_log("TraceKit: Initialized and enabled for service: " . $this->request->getServiceName() . '/' . $this->request->getMethodName());
             }
             
@@ -321,7 +321,7 @@ class TraceKitProvider extends AbstractApm
             }
             
             $traceId = is_string($this->rootSpan['trace_id'] ?? null) ? $this->rootSpan['trace_id'] : 'N/A';
-            if (ProjectHelper::isDevEnvironment()) {
+            if (ProjectHelper::isDevEnvironment() && !defined('PHPUNIT_TEST')) {
                 error_log("TraceKit: Root span started - Trace ID: " . substr($traceId, 0, 16) . "...");
             }
             
@@ -355,7 +355,7 @@ class TraceKitProvider extends AbstractApm
     private function flushOnShutdown(): void
     {
         if (empty($this->rootSpan)) {
-            if (ProjectHelper::isDevEnvironment()) {
+            if (ProjectHelper::isDevEnvironment() && !defined('PHPUNIT_TEST')) {
                 error_log("TraceKit: Flush skipped - rootSpan is empty");
             }
             return;
@@ -371,7 +371,7 @@ class TraceKitProvider extends AbstractApm
             $statusCodeRaw = http_response_code();
             $statusCode = is_int($statusCodeRaw) ? $statusCodeRaw : 200;
             
-            if (ProjectHelper::isDevEnvironment()) {
+            if (ProjectHelper::isDevEnvironment() && !defined('PHPUNIT_TEST')) {
                 error_log("TraceKit: Flushing trace - Status: " . $statusCode);
             }
             
@@ -1224,7 +1224,9 @@ class TraceKitProvider extends AbstractApm
             $traceIdRaw = is_string($firstSpan['traceId'] ?? null) ? $firstSpan['traceId'] : 'N/A';
             $traceId = substr($traceIdRaw, 0, 16);
             
-            error_log("TraceKit: Queueing trace for fire-and-forget send - Service: {$serviceName}, Spans: {$spanCount}, Trace ID: {$traceId}...");
+            if (!defined('PHPUNIT_TEST')) {
+                error_log("TraceKit: Queueing trace for fire-and-forget send - Service: {$serviceName}, Spans: {$spanCount}, Trace ID: {$traceId}...");
+            }
             
             // Use AsyncApiCall with fireAndForget() for truly non-blocking sending
             $asyncCall = new \Gemvc\Http\AsyncApiCall();

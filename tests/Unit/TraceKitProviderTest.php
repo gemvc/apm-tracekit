@@ -235,8 +235,11 @@ class TraceKitProviderTest extends TestCase
     {
         $provider = new TraceKitProvider(null, ['enabled' => false, 'api_key' => 'key']);
         
-        // Should not throw
+        // Should not throw and should complete successfully
         $provider->flush();
+        
+        // Verify provider is still disabled after flush
+        $this->assertFalse($provider->isEnabled());
     }
     
     public function testGetTraceId(): void
