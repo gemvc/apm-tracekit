@@ -1,3 +1,4 @@
+![gemvc_header_for_github](https://github.com/user-attachments/assets/69dcc3f3-b422-47b6-a67d-a9df94628158)
 # GEMVC APM TraceKit Provider
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
