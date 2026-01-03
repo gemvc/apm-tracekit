@@ -44,6 +44,9 @@
         "Gemvc\\Core\\Apm\\Providers\\TraceKit\\Tests\\": "tests/"
       }
     },
+    "bin": [
+      "bin/tracekit"
+    ],
     "archive": {
       "exclude": [
         "/tests",

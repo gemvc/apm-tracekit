@@ -5,6 +5,50 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - 2026-01-03
+
+### Added
+
+#### CLI Commands
+- **Standalone Binary** - `bin/tracekit` executable for TraceKit commands
+  - Reuses GEMVC CLI patterns for autoloader discovery and command routing
+  - Uses `ProjectHelper` for environment setup and project root detection
+  - Available as `php vendor/bin/tracekit <command>` after package installation
+  - Windows support via `bin/tracekit.bat` wrapper
+- **TraceKitInit Command** - Interactive setup wizard for TraceKit APM
+  - Welcome banner with TraceKit features overview
+  - Existing configuration detection and management
+  - Two setup methods: Easy Register (email verification) and Manual API key entry
+  - Registration flow with async email verification (CLI waits for user input, does not exit)
+  - Verification code retry logic (max 3 attempts)
+  - Service name setup with validation
+  - Automatic `.env` file configuration using `ProjectHelper::updateEnvVariables()`
+  - Connection testing after setup to verify API key
+  - Success message with next steps
+  - Uses GEMVC CLI infrastructure (`Command`, `CliBoxShow`, `ProjectHelper`)
+- **TraceKitCommandCategories** - Command registration and discovery support
+  - Command category definitions for GEMVC CLI system
+  - Command class mappings
+  - Example usage documentation (updated for standalone binary syntax)
+
+### Changed
+
+- None
+
+### Deprecated
+
+- None
+
+### Removed
+
+- None
+
+### Fixed
+
+- None
+
+---
+
 ## [1.0.0] - 2026-01-01
 
 ### Added
@@ -131,6 +175,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Version History
 
+- **1.1.0** (2026-01-03) - CLI Setup Wizard
 - **1.0.0** (2026-01-01) - Initial release
 
 ---

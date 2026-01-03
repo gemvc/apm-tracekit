@@ -1,0 +1,137 @@
+#!/usr/bin/env php
+<?php
+
+/**
+ * TraceKit CLI Binary
+ * 
+ * Standalone binary for TraceKit APM commands.
+ * Reuses GEMVC CLI patterns for consistency.
+ */
+
+// Determine if we're in a project context or framework context
+// Reuse autoloader discovery from GEMVC's bin/gemvc
+$possibleAutoloaders = [
+    getcwd() . '/vendor/autoload.php',               // Project root autoloader
+    __DIR__ . '/../vendor/autoload.php',             // Project installation
+    __DIR__ . '/../autoload.php',                    // Framework development
+    __DIR__ . '/../../autoload.php',                 // Alternative project path
+    __DIR__ . '/../../../../autoload.php',           // Composer vendor installation
+    dirname(dirname(dirname(dirname(__DIR__)))) . '/autoload.php'  // Deep vendor installation
+];
+
+$autoloaded = false;
+foreach ($possibleAutoloaders as $autoloader) {
+    if (file_exists($autoloader)) {
+        require_once $autoloader;
+        $autoloaded = true;
+        break;
+    }
+}
+
+if (!$autoloaded) {
+    echo "\033[31mError: Could not find Composer's autoloader.\033[0m\n";
+    echo "Please ensure:\n";
+    echo "1. You have run 'composer install'\n";
+    echo "2. You are running this script from the project root\n";
+    echo "3. The vendor directory exists and is not corrupted\n";
+    echo "\nTried the following paths:\n";
+    foreach ($possibleAutoloaders as $path) {
+        echo "- {$path}\n";
+    }
+    exit(1);
+}
+
+// Load environment using ProjectHelper
+try {
+    // Find project root and change to it
+    $projectRoot = \Gemvc\Helper\ProjectHelper::rootDir();
+    chdir($projectRoot);
+    
+    // Load .env file if it exists (ProjectHelper handles errors gracefully)
+    try {
+        \Gemvc\Helper\ProjectHelper::loadEnv();
+    } catch (\Exception $e) {
+        // .env file not found - that's okay, continue without it
+    }
+    
+    // Set default environment variables if not set
+    if (!isset($_ENV['APP_ENV'])) {
+        $_ENV['APP_ENV'] = 'production';
+        putenv('APP_ENV=production');
+    }
+} catch (\Exception $e) {
+    // ProjectHelper might fail if not in a GEMVC project
+    // Continue anyway - commands might work without it
+}
+
+// Parse command line arguments (same pattern as bin/gemvc)
+$command = $argv[1] ?? '--help';
+$args = array_slice($argv, 2);
+
+// Command mappings
+$commandMappings = [
+    'init' => 'TraceKitInit',
+    // Future commands can be added here
+];
+
+// Convert command name to class name
+$className = '';
+if (isset($commandMappings[$command])) {
+    $className = $commandMappings[$command];
+} else {
+    // For unknown commands, try to convert (e.g., 'status' -> 'TraceKitStatus')
+    $className = 'TraceKit' . ucfirst(strtolower($command));
+}
+
+// Full namespace for TraceKit commands
+$commandNamespace = 'Gemvc\\Core\\Apm\\Providers\\TraceKit\\Commands\\';
+$commandClass = $commandNamespace . $className;
+
+// Handle help command
+if ($command === '--help' || $command === '-h' || $command === 'help') {
+    echo "\033[1mTraceKit APM CLI\033[0m\n\n";
+    echo "Usage: tracekit <command> [options]\n\n";
+    echo "\033[1mAvailable Commands:\033[0m\n";
+    echo "  \033[32minit\033[0m                          Interactive setup wizard for TraceKit APM\n";
+    echo "  \033[32m--help\033[0m, \033[32m-h\033[0m                  Show this help message\n";
+    echo "\n";
+    echo "\033[1mExamples:\033[0m\n";
+    echo "  php vendor/bin/tracekit init\n";
+    echo "  php vendor/bin/tracekit --help\n";
+    exit(0);
+}
+
+// Try to find and execute the command
+$commandFound = false;
+
+if (class_exists($commandClass)) {
+    try {
+        $commandObj = new $commandClass($args);
+        $result = $commandObj->execute();
+        $commandFound = true;
+        exit($result ? 0 : 1);
+    } catch (\Exception $e) {
+        echo "\033[31mError: {$e->getMessage()}\033[0m\n";
+        if (isset($_ENV['APP_ENV']) && $_ENV['APP_ENV'] === 'dev') {
+            echo "\033[31mFile: " . $e->getFile() . ":" . $e->getLine() . "\033[0m\n";
+            echo "\033[31mStack trace:\033[0m\n";
+            echo $e->getTraceAsString() . "\n";
+        }
+        exit(1);
+    } catch (\Throwable $e) {
+        echo "\033[31mFatal Error: {$e->getMessage()}\033[0m\n";
+        if (isset($_ENV['APP_ENV']) && $_ENV['APP_ENV'] === 'dev') {
+            echo "\033[31mFile: " . $e->getFile() . ":" . $e->getLine() . "\033[0m\n";
+            echo "\033[31mStack trace:\033[0m\n";
+            echo $e->getTraceAsString() . "\n";
+        }
+        exit(1);
+    }
+}
+
+if (!$commandFound) {
+    echo "\033[31mError: Command '$command' not found.\033[0m\n";
+    echo "Run 'tracekit --help' for available commands.\n";
+    exit(1);
+}
+

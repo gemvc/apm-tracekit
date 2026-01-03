@@ -101,6 +101,26 @@ TRACEKIT_API_KEY="your-api-key"
 APM_API_KEY="your-api-key"
 ```
 
+### Quick Setup with CLI Command
+
+The easiest way to configure TraceKit is using the interactive CLI command:
+
+```bash
+php vendor/bin/tracekit init
+```
+
+This command provides an interactive wizard that:
+- Guides you through registration or API key setup
+- Handles email verification flow (waits for your input)
+- Automatically configures your `.env` file
+- Tests the connection to verify everything works
+
+**Setup Options:**
+1. **Easy Register** - Automated registration with email verification
+2. **I have API key** - Manual entry of existing API key
+
+See the [CLI Setup Wizard](#-cli-setup-wizard) section below for detailed information.
+
 ## 💡 Usage
 
 ### Automatic Integration
@@ -182,6 +202,81 @@ $toolkit->createWebhook(
     true
 );
 ```
+
+### CLI Setup Wizard
+
+The `tracekit init` command provides an interactive setup wizard for configuring TraceKit:
+
+```bash
+php vendor/bin/tracekit init
+```
+
+**What the wizard does:**
+
+1. **Welcome Banner** - Displays TraceKit features and welcome message
+2. **Configuration Detection** - Checks for existing TraceKit configuration
+   - If found, offers to reconfigure, test connection, or exit
+3. **Setup Method Selection:**
+   - **Easy Register** (Recommended)
+     - Prompts for email and organization name
+     - Sends registration request to TraceKit
+     - Sends verification code to your email
+     - **Waits for you to enter the verification code** (CLI does not exit)
+     - Supports retry logic (max 3 attempts)
+     - Automatically receives and saves API key
+   - **I have API key**
+     - Prompts for existing API key
+     - Validates API key format
+4. **Service Name Setup** - Prompts for unique service name with validation
+5. **Automatic Configuration** - Updates `.env` file with:
+   - `TRACEKIT_API_KEY` - Your API key
+   - `TRACEKIT_SERVICE_NAME` - Your service name
+   - `APM_NAME="TraceKit"` - Provider name
+   - `APM_ENABLED="true"` - Enable APM
+6. **Connection Test** - Verifies API key and connection to TraceKit service
+7. **Success Message** - Displays confirmation and next steps
+
+**Example Flow:**
+
+```
+$ php vendor/bin/tracekit init
+
+╔══════════════════════════════════════════════════════════╗
+║         Welcome to TraceKit APM Setup Wizard            ║
+╚══════════════════════════════════════════════════════════╝
+
+Choose setup method:
+  1. Easy Register (Recommended)
+  2. I have API key
+
+Enter your choice [1]: 1
+
+Enter your email: admin@example.com
+Enter organization name (optional): My Company
+
+Registering service with TraceKit...
+  Sending registration request... ✓ Done
+
+✓ Verification code sent to: admin@example.com
+Please check your email for the verification code.
+
+Enter verification code from email: 123456
+
+Verifying code... ✓ Verified
+✓ API Key received
+✓ Service registered successfully
+
+Enter service name: my-awesome-service
+
+Saving configuration... ✓ Done
+Testing connection... ✓ Connection successful!
+
+╔══════════════════════════════════════════════════════════╗
+║              TraceKit Setup Complete!                    ║
+╚══════════════════════════════════════════════════════════╝
+```
+
+**Note:** The CLI command is part of the GEMVC framework and uses standard CLI infrastructure (`Command`, `CliBoxShow`, `ProjectHelper`).
 
 ## ✨ Features
 

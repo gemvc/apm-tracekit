@@ -1,5 +1,97 @@
 # Release Notes
 
+## Version 1.1.0 - CLI Setup Wizard
+
+**Release Date:** 2026-01-03
+
+### Overview
+
+This release adds an interactive CLI setup wizard (`tracekit init`) that simplifies TraceKit APM configuration. The wizard guides users through registration, email verification, and automatic `.env` file configuration.
+
+### What's New
+
+#### CLI Command Features
+
+- **Interactive Setup Wizard** - `tracekit init` command for easy configuration
+  - Welcome banner with TraceKit features overview
+  - Existing configuration detection and management options
+  - Two setup methods:
+    - **Easy Register** - Automated registration with email verification
+      - Prompts for email and organization name
+      - Sends registration request to TraceKit
+      - Waits for user to enter verification code (CLI does not exit)
+      - Retry logic for verification (max 3 attempts)
+      - Automatically receives and saves API key
+    - **I have API key** - Manual API key entry
+      - Prompts for existing API key
+      - Validates API key format
+  - Service name setup with uniqueness validation
+  - Automatic `.env` file configuration using `ProjectHelper`
+  - Connection testing to verify setup
+  - Success message with next steps
+
+### Usage
+
+#### CLI Setup Wizard
+
+The easiest way to set up TraceKit is using the interactive CLI command:
+
+```bash
+php vendor/bin/tracekit init
+```
+
+**Setup Flow:**
+
+1. **Welcome Banner** - Displays TraceKit features and welcome message
+2. **Configuration Check** - Detects existing configuration and offers options:
+   - Reconfigure (start fresh)
+   - Test existing connection
+   - Exit
+3. **Setup Method Selection** - Choose between:
+   - **Option 1: Easy Register** (Recommended)
+     - Enter your email address
+     - Enter organization name (optional)
+     - Registration request sent to TraceKit
+     - Verification code sent to your email
+     - **CLI waits for you to enter the verification code** (does not exit)
+     - Enter verification code when prompted
+     - Automatic API key retrieval and saving
+   - **Option 2: I have API key**
+     - Enter your existing TraceKit API key
+     - API key validation
+4. **Service Name Setup** - Enter unique service name for your application
+5. **Configuration Saving** - Automatically updates `.env` file with:
+   - `TRACEKIT_API_KEY`
+   - `TRACEKIT_SERVICE_NAME`
+   - `APM_NAME="TraceKit"`
+   - `APM_ENABLED="true"`
+6. **Connection Test** - Verifies API key and connection to TraceKit
+7. **Success Message** - Displays confirmation and next steps
+
+**Note:** The CLI command uses GEMVC's standard CLI infrastructure and integrates seamlessly with the framework.
+
+### Migration Guide
+
+**Upgrading from 1.0.0** - No migration required. This is a feature addition.
+
+To use the new CLI wizard:
+
+1. Update to version 1.1.0: `composer update gemvc/apm-tracekit`
+2. Run the setup wizard: `php vendor/bin/tracekit init`
+3. Follow the interactive prompts
+
+Existing installations continue to work without changes.
+
+### Breaking Changes
+
+None - This is a backwards-compatible feature addition.
+
+### Changelog
+
+See CHANGELOG.md for detailed changelog.
+
+---
+
 ## Version 1.0.0 - Initial Release
 
 **Release Date:** 2026-01-01
@@ -194,8 +286,9 @@ $toolkit->sendHeartbeatAsync('healthy', [
 To get started:
 
 1. Install the package: `composer require gemvc/apm-tracekit`
-2. Configure environment variables in `.env`
-3. Set `APM_NAME="TraceKit"` in your `.env` file
+2. Run the setup wizard: `php vendor/bin/tracekit init`
+   - Or manually configure environment variables in `.env`
+3. Set `APM_NAME="TraceKit"` in your `.env` file (done automatically by CLI)
 4. The framework will automatically use TraceKit for APM
 
 ### Known Issues
