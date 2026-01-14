@@ -27,8 +27,7 @@
     },
     "require": {
       "php": ">=8.2",
-      "gemvc/apm-contracts": "^1.4.0",
-      "gemvc/library": "^5.2"
+      "gemvc/apm-contracts": "^1.4.0"
     },
     "require-dev": {
       "phpstan/phpstan": "^2.1",

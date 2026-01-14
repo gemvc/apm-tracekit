@@ -1,0 +1,7 @@
+/tests export-ignore
+/phpunit.xml export-ignore
+/phpstan.neon export-ignore
+/TESTING_PROTOCOL.md export-ignore
+/RELEASE_NOTES.md export-ignore
+/CHANGELOG.md export-ignore
+.gitignore export-ignore
