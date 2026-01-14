@@ -94,14 +94,17 @@ class TraceKitInit extends Command
             "\033[1;94mTraceKit\033[0m provides distributed tracing and performance",
             "monitoring for your GEMVC application.",
             "",
+            "\033[1;92m✓ TraceKit is already installed and available!\033[0m",
+            "  (Included automatically with gemvc/library)",
+            "",
             "\033[1;93m⚡ Features:\033[0m",
             "  • OpenTelemetry OTLP format",
-            "  • Non-blocking trace sending",
+            "  • Batch trace sending (reliable & OpenSwoole compatible)",
             "  • Automatic span management",
             "  • Exception tracking",
             "  • Health monitoring",
             "",
-            "\033[1;36mLet's set up TraceKit for your project!\033[0m"
+            "\033[1;36mLet's configure TraceKit for your project!\033[0m"
         ];
         
         foreach ($lines as $line) {

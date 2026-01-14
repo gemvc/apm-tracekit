@@ -10,7 +10,7 @@ use Gemvc\Helper\ProjectHelper;
  * This is the TraceKit-specific implementation of the APM interface.
  * It extends AbstractApm and provides TraceKit-specific functionality:
  * - OpenTelemetry OTLP JSON format
- * - Non-blocking trace sending via AsyncApiCall
+ * - Batch trace sending via AbstractApm's batching system (synchronous ApiCall)
  * - Simple span tracking with stack-based context
  * 
  * @package Gemvc\Core\Apm\Providers\TraceKit
@@ -350,6 +350,9 @@ class TraceKitProvider extends AbstractApm
     /**
      * Flush traces on shutdown (called by register_shutdown_function)
      * 
+     * Ensures all batched traces are sent immediately on shutdown using
+     * AbstractApm's forceSendBatch() method.
+     * 
      * @return void
      */
     private function flushOnShutdown(): void
@@ -372,7 +375,7 @@ class TraceKitProvider extends AbstractApm
             $statusCode = is_int($statusCodeRaw) ? $statusCodeRaw : 200;
             
             if (ProjectHelper::isDevEnvironment() && !defined('PHPUNIT_TEST')) {
-                error_log("TraceKit: Flushing trace - Status: " . $statusCode);
+                error_log("TraceKit: Flushing trace on shutdown - Status: " . $statusCode);
             }
             
             // End root span with final status
@@ -380,8 +383,11 @@ class TraceKitProvider extends AbstractApm
                 'http.status_code' => $statusCode,
             ], self::determineStatusFromHttpCode($statusCode));
             
-            // Flush traces (non-blocking - AsyncApiCall will use fireAndForget)
+            // Flush (adds trace to batch queue)
             $this->flush();
+            
+            // Force send all batched traces immediately on shutdown
+            $this->forceSendBatch();
         } catch (\Throwable $e) {
             // Silently fail - don't let TraceKit break the application
             if (ProjectHelper::isDevEnvironment()) {
@@ -691,7 +697,11 @@ class TraceKitProvider extends AbstractApm
     }
     
     /**
-     * Flush traces (send to TraceKit service)
+     * Flush traces (add to batch queue for sending)
+     * 
+     * Uses AbstractApm's batching system which sends traces in batches
+     * every APM_SEND_INTERVAL seconds (default: 5 seconds) using synchronous ApiCall.
+     * This is compatible with OpenSwoole production environments.
      * 
      * @return void
      */
@@ -705,14 +715,18 @@ class TraceKitProvider extends AbstractApm
             // Build trace payload
             $payload = $this->buildTracePayload();
             
-            // Validate payload structure
-            $validatedData = $this->validatePayloadStructure($payload);
-            if ($validatedData === null) {
+            if (empty($payload)) {
+                // Clear spans even if payload is empty
+                $this->spans = [];
+                $this->traceId = null;
                 return;
             }
             
-            // Send traces using fire-and-forget (non-blocking)
-            $this->sendTraces($payload);
+            // Add trace to batch queue (uses AbstractApm's batching system)
+            $this->addTraceToBatch($payload);
+            
+            // Check if batch should be sent (time-based, uses APM_SEND_INTERVAL from base class)
+            $this->sendBatchIfNeeded();
             
             // Clear spans for next trace
             $this->spans = [];
@@ -1135,132 +1149,107 @@ class TraceKitProvider extends AbstractApm
         return $spanData;
     }
     
-    /**
-     * Extract service name from resource span payload
-     * 
-     * @param array<string, mixed> $firstResourceSpan First resource span from payload
-     * @return string Service name or 'unknown' if not found
-     */
-    private function extractServiceNameFromPayload(array $firstResourceSpan): string
-    {
-        $resource = is_array($firstResourceSpan['resource'] ?? null) ? $firstResourceSpan['resource'] : [];
-        $resourceAttrs = is_array($resource['attributes'] ?? null) ? $resource['attributes'] : [];
-        $firstAttr = is_array($resourceAttrs[0] ?? null) ? $resourceAttrs[0] : [];
-        $attrValue = is_array($firstAttr['value'] ?? null) ? $firstAttr['value'] : [];
-        return is_string($attrValue['stringValue'] ?? null) ? $attrValue['stringValue'] : 'unknown';
-    }
+    // ==========================================
+    // Batching Methods (Required by AbstractApm)
+    // ==========================================
     
     /**
-     * Validate payload structure and extract spans data
+     * Build batch payload from multiple traces
      * 
-     * @param array<string, mixed> $payload The trace payload to validate
-     * @return array{spans: array<int, array<string, mixed>>, spanCount: int, firstResourceSpan: array<string, mixed>}|null
+     * Combines multiple trace payloads into a single OTLP batch payload.
+     * Note: TraceKit currently sends traces immediately via fire-and-forget,
+     * but this method is required by AbstractApm for potential future batching support.
+     * 
+     * @param array<int, array<string, mixed>> $traces Array of trace payloads
+     * @return array<string, mixed> Combined batch payload in OTLP format
      */
-    private function validatePayloadStructure(array $payload): ?array
+    protected function buildBatchPayload(array $traces): array
     {
-        if (empty($payload) || !isset($payload['resourceSpans'])) {
-            return null;
+        if (empty($traces)) {
+            return [];
         }
         
-        $resourceSpans = is_array($payload['resourceSpans']) ? $payload['resourceSpans'] : [];
-        if (empty($resourceSpans) || !is_array($resourceSpans[0] ?? null)) {
-            return null;
+        // Combine all spans from all traces into a single resource span
+        /** @var array<int, array<string, mixed>> $allSpans */
+        $allSpans = [];
+        
+        foreach ($traces as $trace) {
+            /** @var array<string, mixed> $trace */
+            if (!isset($trace['resourceSpans']) || !is_array($trace['resourceSpans'])) {
+                continue;
+            }
+            
+            $resourceSpans = $trace['resourceSpans'];
+            if (empty($resourceSpans) || !is_array($resourceSpans[0] ?? null)) {
+                continue;
+            }
+            
+            /** @var array<string, mixed> $firstResourceSpan */
+            $firstResourceSpan = $resourceSpans[0];
+            $scopeSpans = is_array($firstResourceSpan['scopeSpans'] ?? null) ? $firstResourceSpan['scopeSpans'] : [];
+            if (empty($scopeSpans) || !is_array($scopeSpans[0] ?? null)) {
+                continue;
+            }
+            
+            /** @var array<string, mixed> $firstScopeSpan */
+            $firstScopeSpan = $scopeSpans[0];
+            $spansRaw = $firstScopeSpan['spans'] ?? null;
+            
+            if (is_array($spansRaw)) {
+                /** @var array<int, array<string, mixed>> $spansRaw */
+                $allSpans = array_merge($allSpans, $spansRaw);
+            }
         }
         
-        /** @var array<string, mixed> $firstResourceSpan */
-        $firstResourceSpan = $resourceSpans[0];
-        $scopeSpans = is_array($firstResourceSpan['scopeSpans'] ?? null) ? $firstResourceSpan['scopeSpans'] : [];
-        if (empty($scopeSpans) || !is_array($scopeSpans[0] ?? null)) {
-            return null;
+        if (empty($allSpans)) {
+            return [];
         }
         
-        /** @var array<string, mixed> $firstScopeSpan */
-        $firstScopeSpan = $scopeSpans[0];
-        $spansRaw = $firstScopeSpan['spans'] ?? null;
-        if (!is_array($spansRaw)) {
-            return null;
-        }
-        
-        /** @var array<int, array<string, mixed>> $spans */
-        $spans = $spansRaw;
-        $spanCount = count($spans);
-        
-        if ($spanCount === 0) {
-            return null;
-        }
-        
+        // Build combined OTLP payload with all spans
         return [
-            'spans' => $spans,
-            'spanCount' => $spanCount,
-            'firstResourceSpan' => $firstResourceSpan,
+            'resourceSpans' => [
+                [
+                    'resource' => [
+                        'attributes' => [
+                            [
+                                'key' => 'service.name',
+                                'value' => [
+                                    'stringValue' => $this->serviceName
+                                ]
+                            ]
+                        ]
+                    ],
+                    'scopeSpans' => [
+                        [
+                            'spans' => $allSpans,
+                        ]
+                    ]
+                ]
+            ]
         ];
     }
     
     /**
-     * Send traces to TraceKit using fire-and-forget (non-blocking)
+     * Get endpoint URL for batch sending
      * 
-     * @param array<string, mixed> $payload The trace payload to send
-     * @return void
+     * @return string API endpoint URL
      */
-    private function sendTraces(array $payload): void
+    protected function getBatchEndpoint(): string
     {
-        try {
-            // Validate payload structure
-            $validatedData = $this->validatePayloadStructure($payload);
-            if ($validatedData === null) {
-                error_log("TraceKit: Empty or invalid payload structure, skipping send");
-                return;
-            }
-            
-            $spans = $validatedData['spans'];
-            $spanCount = $validatedData['spanCount'];
-            $firstResourceSpan = $validatedData['firstResourceSpan'];
-            
-            // Extract service name
-            $serviceName = $this->extractServiceNameFromPayload($firstResourceSpan);
-            
-            // Extract trace ID
-            $firstSpan = is_array($spans[0] ?? null) ? $spans[0] : [];
-            $traceIdRaw = is_string($firstSpan['traceId'] ?? null) ? $firstSpan['traceId'] : 'N/A';
-            $traceId = substr($traceIdRaw, 0, 16);
-            
-            if (!defined('PHPUNIT_TEST')) {
-                error_log("TraceKit: Queueing trace for fire-and-forget send - Service: {$serviceName}, Spans: {$spanCount}, Trace ID: {$traceId}...");
-            }
-            
-            // Use AsyncApiCall with fireAndForget() for truly non-blocking sending
-            $asyncCall = new \Gemvc\Http\AsyncApiCall();
-            $asyncCall->setTimeouts(1, 3);
-            
-            // Add POST request with trace payload and required headers
-            $asyncCall->addPost('tracekit', $this->endpoint, $payload, [
-                'Content-Type' => 'application/json',
-                'X-API-Key' => $this->apiKey
-            ])
-                ->onResponse('tracekit', function($result, $requestId) use ($serviceName, $spanCount) {
-                    /** @var array<string, mixed> $result */
-                    if (!($result['success'] ?? false)) {
-                        $error = is_string($result['error'] ?? null) ? $result['error'] : 'Unknown error';
-                        error_log("TraceKit: Failed to send traces: " . $error);
-                    } else {
-                        $responseCode = is_int($result['http_code'] ?? null) ? $result['http_code'] : 0;
-                        $body = $result['body'] ?? null;
-                        $responseBody = is_string($body) ? substr($body, 0, 200) : json_encode($body);
-                        error_log("TraceKit: ✅ Traces sent successfully (fire-and-forget) - Service: {$serviceName}, Spans: {$spanCount}, HTTP: {$responseCode}");
-                        
-                        if ($responseCode >= 400) {
-                            error_log("TraceKit: Warning - HTTP {$responseCode} response from TraceKit. Response: {$responseBody}");
-                        }
-                    }
-                });
-            
-            // Fire and forget - this sends HTTP response first, then executes in background
-            $asyncCall->fireAndForget();
-            
-        } catch (\Throwable $e) {
-            // Silently fail - don't let TraceKit break your app
-            error_log("TraceKit: Error sending traces: " . $e->getMessage());
-        }
+        return $this->endpoint;
+    }
+    
+    /**
+     * Get HTTP headers for batch sending
+     * 
+     * @return array<string, string> HTTP headers as key-value pairs
+     */
+    protected function getBatchHeaders(): array
+    {
+        return [
+            'Content-Type' => 'application/json',
+            'X-API-Key' => $this->apiKey
+        ];
     }
 }
 

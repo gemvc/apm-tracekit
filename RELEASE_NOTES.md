@@ -1,5 +1,141 @@
 # Release Notes
 
+## Version 2.0.0 - Batch Trace Sending & OpenSwoole Compatibility
+
+**Release Date:** 2026-01-14
+
+### Overview
+
+This release migrates TraceKit APM from `AsyncApiCall` to `AbstractApm`'s batching system, providing improved reliability and OpenSwoole production compatibility. The new batching system uses synchronous `ApiCall` to send traces in time-based batches, eliminating async operation issues that caused errors in OpenSwoole environments.
+
+**Important:** TraceKit is now automatically included when you install `gemvc/library` - no separate installation required! If you're using GEMVC framework, TraceKit APM is already available and ready to configure.
+
+### What's New
+
+#### Included in gemvc/library
+
+- **Auto-Inclusion** - TraceKit is now automatically installed as a dependency of `gemvc/library`
+- **No Separate Installation** - No need to run `composer require gemvc/apm-tracekit` when using GEMVC framework
+- **Always Available** - TraceKit is included by default in all GEMVC installations
+
+#### Batch Trace Sending System
+
+- **Time-Based Batching** - Traces are automatically collected and sent in batches every 5 seconds (configurable via `APM_SEND_INTERVAL`)
+- **Synchronous ApiCall** - Replaced `AsyncApiCall::fireAndForget()` with synchronous `ApiCall` for reliable delivery
+- **Batch Payload Building** - Multiple traces are efficiently combined into single batch requests, reducing HTTP overhead
+- **Shutdown Safety** - `forceSendBatch()` ensures all pending traces are sent immediately on application shutdown
+- **OpenSwoole Compatible** - No async operations that cause production issues in OpenSwoole environments
+
+#### AbstractApm Integration
+
+- **Full Batching Support** - Complete integration with `AbstractApm`'s batching system from `apm-contracts` 1.4.0
+- **Required Methods Implemented**:
+  - `buildBatchPayload()` - Combines multiple trace payloads into single OTLP batch format
+  - `getBatchEndpoint()` - Returns TraceKit API endpoint for batch requests
+  - `getBatchHeaders()` - Returns HTTP headers with API key authentication
+
+### Breaking Changes
+
+#### Trace Sending Behavior
+
+- **Batching Delay** - Traces are now sent in batches every 5 seconds instead of immediately
+  - Traces may appear in dashboards with up to 5 seconds delay (configurable)
+  - Set `APM_SEND_INTERVAL=1` for near-immediate sending (minimum: 1 second)
+- **Synchronous Sending** - Uses synchronous `ApiCall` instead of async `AsyncApiCall`
+  - No more fire-and-forget behavior
+  - Traces are sent as part of the batching cycle
+
+#### Dependency Requirements
+
+- **apm-contracts Update** - Requires `gemvc/apm-contracts` ^1.4.0
+  - Previous requirement: `^1.0`
+  - New version includes improved batch send interval (default: 5 seconds)
+
+### Migration Guide
+
+**For Users:**
+
+1. **No Installation Required** - TraceKit is automatically included in `gemvc/library`
+   - If you're using GEMVC framework, TraceKit is already available
+   - Simply run the setup wizard: `php vendor/bin/tracekit init`
+   - No need to run `composer require gemvc/apm-tracekit`
+
+2. **No Code Changes Required** - The public API remains the same
+   - All existing code using `$apm->startSpan()`, `$apm->endSpan()`, etc. continues to work
+   - No breaking changes to method signatures
+
+3. **Trace Visibility:**
+   - Traces may appear with up to 5 seconds delay (configurable)
+   - All traces are guaranteed to be sent on shutdown (no data loss)
+   - For faster visibility, set `APM_SEND_INTERVAL=1` in your `.env` file
+
+4. **Configuration:**
+   ```env
+   # Optional: Adjust batch send interval (default: 5 seconds)
+   APM_SEND_INTERVAL=5
+   
+   # Existing configuration remains the same
+   APM_NAME="TraceKit"
+   APM_ENABLED="true"
+   TRACEKIT_API_KEY="your-api-key"
+   TRACEKIT_SERVICE_NAME="your-service-name"
+   ```
+
+**For Developers:**
+
+- Update `composer.json` to require `gemvc/apm-contracts` ^1.4.0 (if installing standalone)
+- Run `composer update` to get the latest dependencies (if installing standalone)
+- No breaking API changes - all public methods remain the same
+- Internal implementation changed from `AsyncApiCall` to batching system
+
+### Fixed Issues
+
+- **OpenSwoole Production Errors** - Fixed errors and problems caused by `AsyncApiCall` in OpenSwoole production environments
+- **Trace Delivery Reliability** - Improved trace delivery with synchronous `ApiCall` and batching system
+- **Shutdown Data Loss** - Ensured all traces are sent on shutdown using `forceSendBatch()`
+
+### Performance Improvements
+
+- **Batch Efficiency** - Multiple traces combined into single requests, reducing HTTP overhead
+- **Configurable Frequency** - Adjust `APM_SEND_INTERVAL` to balance trace visibility vs. batch efficiency
+- **OpenSwoole Compatible** - No async operations that cause production issues
+
+### Technical Details
+
+#### Batching System
+
+- Traces are queued using `addTraceToBatch()` when `flush()` is called
+- `sendBatchIfNeeded()` checks if batch interval has elapsed (default: 5 seconds)
+- Batch payload combines all queued traces into single OTLP JSON format
+- Synchronous `ApiCall` sends batch to TraceKit endpoint
+- On shutdown, `forceSendBatch()` ensures immediate sending of all pending traces
+
+#### Removed Components
+
+- `AsyncApiCall::fireAndForget()` pattern (completely removed)
+- `sendTraces()` private method (replaced by batching system)
+- `extractServiceNameFromPayload()` helper method (no longer needed)
+- `validatePayloadStructure()` helper method (no longer needed)
+
+### Dependencies
+
+- **PHP:** >= 8.2 (unchanged)
+- **gemvc/apm-contracts:** ^1.4.0 (updated from ^1.0)
+- **gemvc/library:** ^5.2 (unchanged)
+
+### Testing
+
+- All 87 tests passing (200 assertions)
+- PHPStan passes with no errors
+- Integration tests verify batching behavior
+- OpenSwoole compatibility verified
+
+### Changelog
+
+See CHANGELOG.md for detailed changelog.
+
+---
+
 ## Version 1.1.0 - CLI Setup Wizard
 
 **Release Date:** 2026-01-03
@@ -283,13 +419,20 @@ $toolkit->sendHeartbeatAsync('healthy', [
 
 **First-time installation** - No migration required. This is the initial release.
 
+**Note:** TraceKit is now automatically included when you install `gemvc/library` - no separate installation required!
+
 To get started:
 
-1. Install the package: `composer require gemvc/apm-tracekit`
+1. **TraceKit is already available** - If you're using GEMVC framework, TraceKit is automatically included
 2. Run the setup wizard: `php vendor/bin/tracekit init`
    - Or manually configure environment variables in `.env`
 3. Set `APM_NAME="TraceKit"` in your `.env` file (done automatically by CLI)
 4. The framework will automatically use TraceKit for APM
+
+**Standalone Installation:** If you need to install this package outside of GEMVC framework, you can still use:
+```bash
+composer require gemvc/apm-tracekit
+```
 
 ### Known Issues
 

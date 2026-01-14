@@ -5,6 +5,76 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0] - 2026-01-14
+
+### Added
+
+#### Batching System Integration
+- **AbstractApm Batching** - Full integration with `AbstractApm`'s batching system from `apm-contracts` 1.4.0
+- **Batch Payload Building** - Implemented `buildBatchPayload()` to combine multiple traces into single batch requests
+- **Batch Endpoint Configuration** - Implemented `getBatchEndpoint()` for batch API endpoint
+- **Batch Headers Configuration** - Implemented `getBatchHeaders()` for batch request headers
+- **Time-Based Batching** - Traces are automatically batched and sent every 5 seconds (configurable via `APM_SEND_INTERVAL`)
+- **Shutdown Safety** - `forceSendBatch()` ensures all pending traces are sent immediately on shutdown
+
+#### OpenSwoole Compatibility
+- **Synchronous ApiCall** - Replaced `AsyncApiCall` with synchronous `ApiCall` for OpenSwoole production compatibility
+- **Reliable Delivery** - Synchronous calls ensure traces are sent reliably without async operation issues
+
+### Changed
+
+#### Breaking Changes
+- **Trace Sending Method** - Migrated from `AsyncApiCall::fireAndForget()` to `AbstractApm`'s batching system
+  - Traces are now batched and sent every 5 seconds instead of immediately
+  - Uses synchronous `ApiCall` instead of async operations
+  - Behavior change: Traces may appear in dashboards with up to 5 seconds delay (configurable)
+- **Dependency Update** - Updated `gemvc/apm-contracts` requirement from `^1.0` to `^1.4.0`
+  - Requires implementation of abstract batching methods
+  - Benefits from improved batch send interval (default: 5 seconds, was 10 seconds in older versions)
+
+#### Implementation Changes
+- **flush() Method** - Now adds traces to batch queue instead of sending immediately
+  - Calls `addTraceToBatch()` to queue traces
+  - Calls `sendBatchIfNeeded()` to check if batch should be sent (time-based)
+- **flushOnShutdown() Method** - Now calls `forceSendBatch()` after flush to ensure all traces are sent
+- **Batching Methods** - Implemented required abstract methods from `AbstractApm`:
+  - `buildBatchPayload()` - Combines multiple trace payloads into single OTLP batch
+  - `getBatchEndpoint()` - Returns TraceKit endpoint URL
+  - `getBatchHeaders()` - Returns HTTP headers with API key
+
+### Removed
+
+- **AsyncApiCall Usage** - Completely removed `AsyncApiCall::fireAndForget()` pattern
+- **sendTraces() Method** - Removed private method that used `AsyncApiCall` (no longer needed)
+- **Unused Helper Methods** - Removed `extractServiceNameFromPayload()` and `validatePayloadStructure()` methods that were only used by the old `sendTraces()` method
+
+### Fixed
+
+- **OpenSwoole Production Issues** - Fixed errors and problems caused by `AsyncApiCall` in OpenSwoole production environments
+- **Trace Reliability** - Improved trace delivery reliability with synchronous `ApiCall` and batching system
+- **Shutdown Data Loss** - Ensured all traces are sent on shutdown using `forceSendBatch()`
+
+### Migration Guide
+
+**For Users:**
+- No code changes required - the API remains the same
+- Traces may appear in dashboards with up to 5 seconds delay (configurable via `APM_SEND_INTERVAL`)
+- If you need immediate trace visibility, set `APM_SEND_INTERVAL=1` (minimum: 1 second)
+- All traces are guaranteed to be sent on shutdown, so no data loss occurs
+
+**For Developers:**
+- Update `composer.json` to require `gemvc/apm-contracts` ^1.4.0
+- Run `composer update` to get the latest dependencies
+- No breaking API changes - all public methods remain the same
+
+### Performance
+
+- **Batch Efficiency** - Multiple traces are combined into single requests, reducing HTTP overhead
+- **Configurable Frequency** - Adjust `APM_SEND_INTERVAL` to balance trace visibility vs. batch efficiency
+- **OpenSwoole Compatible** - No async operations that cause production issues
+
+---
+
 ## [1.1.0] - 2026-01-03
 
 ### Added
@@ -175,6 +245,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Version History
 
+- **2.0.0** (2026-01-14) - ApiCall Batching & OpenSwoole Compatibility
 - **1.1.0** (2026-01-03) - CLI Setup Wizard
 - **1.0.0** (2026-01-01) - Initial release
 
@@ -182,7 +253,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Notes
 
-- This package requires `gemvc/apm-contracts` ^1.0
+- This package requires `gemvc/apm-contracts` ^1.4.0 (since version 2.0.0)
 - This package requires `gemvc/library` ^5.2
 - PHP 8.2+ is required
 - See RELEASE_NOTES.md for detailed release information

@@ -8,6 +8,16 @@ TraceKit APM provider implementation for GEMVC framework. This package implement
 
 ## ⬇️ Installation
 
+**TraceKit is automatically included** when you install `gemvc/library` - no separate installation required!
+
+If you're using GEMVC framework, TraceKit APM is already available and ready to configure. Simply run the setup wizard:
+
+```bash
+php vendor/bin/tracekit init
+```
+
+**Note:** If you need to install this package standalone (outside of GEMVC framework), you can still use:
+
 ```bash
 composer require gemvc/apm-tracekit
 ```
@@ -54,7 +64,7 @@ This package is built on top of the [GEMVC APM Contracts](https://github.com/gem
 - **`TraceKitModel`** - Alternative APM provider implementation extending `AbstractApm` (with additional methods like `addEvent()`)
 - **`TraceKitToolkit`** - Client-side integration and management class extending `AbstractApmToolkit`
 - **OpenTelemetry OTLP JSON Format** - Sends traces in standard OpenTelemetry format
-- **Non-blocking Trace Sending** - Uses GEMVC's `AsyncApiCall` for fire-and-forget trace delivery
+- **Batch Trace Sending** - Uses `AbstractApm`'s batching system with synchronous `ApiCall` for reliable trace delivery (compatible with OpenSwoole production)
 
 ## 🔐 Configuration
 
@@ -67,6 +77,7 @@ Set in your `.env` file:
 APM_NAME="TraceKit"
 APM_ENABLED="true"
 APM_SAMPLE_RATE="1.0"
+APM_SEND_INTERVAL="5"
 APM_TRACE_RESPONSE="false"
 APM_TRACE_DB_QUERY="false"
 APM_TRACE_REQUEST_BODY="false"
@@ -130,7 +141,8 @@ Once installed and configured, TraceKit automatically integrates with GEMVC:
 1. **Framework Initialization** - The framework creates a `TraceKitProvider` instance via `ApmFactory::create()`
 2. **Root Trace Creation** - A root span is automatically created for each HTTP request
 3. **Span Management** - Child spans are created for database queries, controller operations, etc.
-4. **Trace Flushing** - Traces are automatically sent after the HTTP response (non-blocking)
+4. **Trace Batching** - Traces are automatically batched and sent every 5 seconds (configurable via `APM_SEND_INTERVAL`) using synchronous `ApiCall`
+5. **Shutdown Safety** - All pending traces are sent immediately on shutdown to ensure no data loss
 
 ### Manual Span Creation
 
@@ -287,12 +299,14 @@ Testing connection... ✓ Connection successful!
 - **Span Hierarchy** - Supports parent-child span relationships
 - **Event Recording** - Can record exception events and custom events on spans
 
-### Non-Blocking Trace Sending
+### Batch Trace Sending
 
-- **Fire-and-Forget** - Uses `AsyncApiCall::fireAndForget()` for non-blocking delivery
-- **Response First** - Ensures HTTP response is sent before trace delivery
-- **Background Processing** - Traces are sent in the background after response completion
+- **Time-Based Batching** - Uses `AbstractApm`'s batching system to send traces in batches every 5 seconds (configurable via `APM_SEND_INTERVAL`)
+- **Synchronous ApiCall** - Uses synchronous `ApiCall` for reliable trace delivery (compatible with OpenSwoole production environments)
+- **Automatic Batching** - Multiple traces are automatically combined into single batch requests for efficiency
+- **Shutdown Safety** - All pending traces are force-sent on shutdown to ensure no data loss
 - **Graceful Degradation** - Failures in trace sending don't affect application performance
+- **OpenSwoole Compatible** - No async operations that cause issues in OpenSwoole production environments
 
 ### Span Management
 
@@ -314,7 +328,7 @@ Main provider class implementing `ApmInterface` (used by `ApmFactory`):
 - `startSpan(string $operationName, array $attributes = [], int $kind = self::SPAN_KIND_INTERNAL): array` - Start a child span. `$kind` can be `SPAN_KIND_SERVER`, `SPAN_KIND_CLIENT`, `SPAN_KIND_INTERNAL`, etc.
 - `endSpan(array $spanData, array $finalAttributes = [], ?string $status = self::STATUS_OK): void` - End a span. `$status` can be `STATUS_OK` or `STATUS_ERROR`
 - `recordException(array $spanData, \Throwable $exception): array` - Record an exception on a span. Auto-creates trace if no root span exists
-- `flush(): void` - Send traces to TraceKit service (non-blocking)
+- `flush(): void` - Add traces to batch queue (batches are sent automatically every `APM_SEND_INTERVAL` seconds)
 - `getTraceId(): ?string` - Get current trace ID (inherited from `AbstractApm`)
 
 **Static Methods:**
@@ -352,6 +366,7 @@ For complete API documentation, see the [GEMVC APM Contracts README](vendor/gemv
 - `APM_TRACE_RESPONSE` - Enable/disable response tracing
 - `APM_TRACE_DB_QUERY` - Enable/disable database query tracing
 - `APM_TRACE_REQUEST_BODY` - Enable/disable request body tracing
+- `APM_SEND_INTERVAL` - Batch send interval in seconds (default: 5). Controls how often batched traces are sent to APM provider. Lower values = more frequent sends with smaller batches. Minimum: 1 second.
 - `APM_API_KEY` - Unified API key (works for all providers)
 
 ### TraceKit-Specific Variables
