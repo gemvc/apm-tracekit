@@ -116,6 +116,8 @@ class TraceKitInit extends Command
 
     /**
      * Check existing configuration
+     * 
+     * @return array<string, mixed>
      */
     private function checkExistingConfiguration(): array
     {
@@ -139,13 +141,20 @@ class TraceKitInit extends Command
 
     /**
      * Handle existing configuration
+     * 
+     * @param array<string, mixed> $config
      */
     private function handleExistingConfiguration(array $config): bool
     {
+        $serviceName = is_string($config['serviceName'] ?? null) ? $config['serviceName'] : 'Not set';
+        $apiKey = is_string($config['apiKey'] ?? null) ? $config['apiKey'] : '';
+        $apiKeyPreview = $apiKey !== '' ? (substr($apiKey, 0, 8) . '...') : 'Not set';
+        $enabled = is_bool($config['enabled'] ?? null) ? $config['enabled'] : false;
+        
         $this->box->displayInfoBox('Existing Configuration Found', [
-            "Service Name: " . ($config['serviceName'] ?? 'Not set'),
-            "API Key: " . (substr($config['apiKey'] ?? '', 0, 8) . '...'),
-            "Status: " . ($config['enabled'] ? 'Enabled' : 'Disabled'),
+            "Service Name: " . $serviceName,
+            "API Key: " . $apiKeyPreview,
+            "Status: " . ($enabled ? 'Enabled' : 'Disabled'),
         ]);
 
         if ($this->nonInteractive) {
@@ -261,6 +270,9 @@ class TraceKitInit extends Command
             return '';
         }
 
+        // Ensure $email is string after validation
+        /** @var string $email */
+
         // Get organization name (optional)
         $orgName = null;
         if (!$this->nonInteractive) {
@@ -294,10 +306,12 @@ class TraceKitInit extends Command
             );
 
             if ($response->response_code === 200) {
-                $sessionId = $response->data['session_id'] ?? null;
+                /** @var array<string, mixed> $responseData */
+                $responseData = $response->data ?? [];
+                $sessionId = is_string($responseData['session_id'] ?? null) ? $responseData['session_id'] : null;
                 $this->write("✓ Done\n", 'green');
                 
-                if ($sessionId) {
+                if ($sessionId !== null && $sessionId !== '') {
                     $this->box->displaySuccessBox('Registration Request Sent', [
                         "✓ Verification code sent to: {$email}",
                         "",
@@ -330,13 +344,16 @@ class TraceKitInit extends Command
                         $this->write("  Verifying... ", 'blue');
                         
                         try {
+                            /** @var string $sessionId */
                             $verifyResponse = $this->toolkit->verifyCode($sessionId, $code);
                             
                             if ($verifyResponse->response_code === 200) {
-                                $apiKey = $verifyResponse->data['api_key'] ?? null;
+                                /** @var array<string, mixed> $verifyData */
+                                $verifyData = $verifyResponse->data ?? [];
+                                $apiKey = is_string($verifyData['api_key'] ?? null) ? $verifyData['api_key'] : '';
                                 $this->write("✓ Verified\n", 'green');
                                 
-                                if ($apiKey) {
+                                if ($apiKey !== '') {
                                     $this->box->displaySuccessBox('Verification Successful', [
                                         "✓ API Key received",
                                         "✓ Service registered successfully"
@@ -533,7 +550,7 @@ class TraceKitInit extends Command
             ProjectHelper::loadEnv();
             $apiKey = $_ENV['TRACEKIT_API_KEY'] ?? $_ENV['APM_API_KEY'] ?? null;
 
-            if (empty($apiKey)) {
+            if (empty($apiKey) || !is_string($apiKey)) {
                 $this->warning("API key not found. Skipping connection test.");
                 return false;
             }
@@ -547,9 +564,13 @@ class TraceKitInit extends Command
             if ($response->response_code === 200) {
                 $this->write("✓ Connected\n", 'green');
                 
+                /** @var array<string, mixed> $responseData */
+                $responseData = $response->data ?? [];
+                $serviceName = is_string($responseData['service_name'] ?? null) ? $responseData['service_name'] : 'Unknown';
+                
                 $this->box->displaySuccessBox('Connection Test Passed', [
                     "✓ API connection: OK",
-                    "✓ Service: " . ($response->data['service_name'] ?? 'Unknown'),
+                    "✓ Service: " . $serviceName,
                     "✓ Status: Active",
                 ]);
                 
