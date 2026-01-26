@@ -21,6 +21,10 @@ class TraceKitInit extends Command
     private TraceKitToolkit $toolkit;
     private bool $nonInteractive = false;
 
+    /**
+     * @param array<int, string> $args
+     * @param array<string, mixed> $options
+     */
     public function __construct(array $args = [], array $options = [])
     {
         parent::__construct($args, $options);

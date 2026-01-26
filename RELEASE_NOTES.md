@@ -1,5 +1,81 @@
 # Release Notes
 
+## Version 2.1.1 - PHPStan & PHPUnit Bug Fixes
+
+**Release Date:** 2026-01-26
+
+### Overview
+
+This patch release fixes PHPStan static analysis errors and PHPUnit test runtime errors by adding GEMVC framework stub files. These stubs allow the package to be analyzed and tested independently without requiring the full GEMVC framework to be installed.
+
+### What's Fixed
+
+#### PHPStan Static Analysis
+
+- **GEMVC Framework Stub Files** - Created comprehensive stub files for all GEMVC framework classes used by TraceKit
+  - `Gemvc\Http\Request` - HTTP request class with required methods and properties
+  - `Gemvc\Helper\ProjectHelper` - Project helper with static utility methods
+  - `Gemvc\CLI\Command` - Base command class for CLI infrastructure
+  - `Gemvc\CLI\Commands\CliBoxShow` - CLI display box class
+  - `Gemvc\Http\JsonResponse` - JSON response class
+  - `Gemvc\Http\AsyncApiCall` - Async API call class
+  - `Gemvc\Http\Response` - HTTP response class
+- **PHPStan Configuration** - Updated `phpstan.neon` to load stub files via `bootstrapFiles`
+- **Result** - PHPStan now passes with no errors at level 9
+
+#### PHPUnit Test Runtime
+
+- **Test Bootstrap Enhancement** - Updated `tests/bootstrap.php` to load stub files before test execution
+- **Runtime Errors Fixed** - All 18 previous test runtime errors resolved
+- **Result** - All 87 tests now pass successfully (200 assertions)
+
+#### Type Safety Improvements
+
+- **TraceKitProvider Type Narrowing** - Fixed type narrowing issues in `flush()` method
+  - Improved array access type safety for OTLP payload structure
+  - Added proper type assertions for nested array access
+  - Fixed string casting issues in debug logging
+- **TraceKitInit Type Hints** - Enhanced constructor parameter type hints
+
+### Technical Details
+
+#### Stub Files Location
+
+All stub files are located in the `stubs/` directory:
+- `stubs/Gemvc/Http/Request.php`
+- `stubs/Gemvc/Helper/ProjectHelper.php`
+- `stubs/Gemvc/CLI/Command.php`
+- `stubs/Gemvc/CLI/Commands/CliBoxShow.php`
+- `stubs/Gemvc/Http/JsonResponse.php`
+- `stubs/Gemvc/Http/AsyncApiCall.php`
+- `stubs/Gemvc/Http/Response.php`
+
+#### Stub Files Purpose
+
+- **PHPStan Analysis** - Stub files are loaded via `phpstan.neon` bootstrap configuration for static analysis
+- **Test Execution** - Stub files are loaded via `tests/bootstrap.php` for runtime test execution
+- **Minimal Implementation** - Stubs provide minimal implementations with correct method signatures and type hints
+
+### Migration Guide
+
+**Upgrading from 2.0.0 or 2.1.0** - No migration required. This is a bug fix release with no breaking changes.
+
+### Breaking Changes
+
+None - This is a patch release with only bug fixes.
+
+### Testing
+
+- **PHPStan** - Passes with no errors (level 9)
+- **PHPUnit** - All 87 tests passing (200 assertions)
+- **Type Safety** - Improved type narrowing and assertions
+
+### Changelog
+
+See CHANGELOG.md for detailed changelog.
+
+---
+
 ## Version 2.0.0 - Batch Trace Sending & OpenSwoole Compatibility
 
 **Release Date:** 2026-01-14

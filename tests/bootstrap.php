@@ -22,3 +22,13 @@ $_SERVER['PHPUNIT_TEST'] = '1';
 // Load Composer autoloader
 require_once __DIR__ . '/../vendor/autoload.php';
 
+// Load GEMVC framework stub classes for testing
+// These are minimal implementations of framework classes needed for tests
+require_once __DIR__ . '/../stubs/Gemvc/Http/Request.php';
+require_once __DIR__ . '/../stubs/Gemvc/Helper/ProjectHelper.php';
+require_once __DIR__ . '/../stubs/Gemvc/CLI/Command.php';
+require_once __DIR__ . '/../stubs/Gemvc/CLI/Commands/CliBoxShow.php';
+require_once __DIR__ . '/../stubs/Gemvc/Http/JsonResponse.php';
+require_once __DIR__ . '/../stubs/Gemvc/Http/AsyncApiCall.php';
+require_once __DIR__ . '/../stubs/Gemvc/Http/Response.php';
+

@@ -5,6 +5,42 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.1] - 2026-01-26
+
+### Fixed
+
+#### PHPStan Static Analysis
+- **GEMVC Framework Stub Files** - Added stub files for GEMVC framework classes to resolve PHPStan errors
+  - Created `stubs/Gemvc/Http/Request.php` - Request class stub with required methods and properties
+  - Created `stubs/Gemvc/Helper/ProjectHelper.php` - ProjectHelper class stub with static methods
+  - Created `stubs/Gemvc/CLI/Command.php` - Command class stub for CLI infrastructure
+  - Created `stubs/Gemvc/CLI/Commands/CliBoxShow.php` - CliBoxShow class stub for CLI display
+  - Created `stubs/Gemvc/Http/JsonResponse.php` - JsonResponse class stub
+  - Created `stubs/Gemvc/Http/AsyncApiCall.php` - AsyncApiCall class stub
+  - Created `stubs/Gemvc/Http/Response.php` - Response class stub
+  - Updated `phpstan.neon` to include stub files in bootstrap configuration
+  - PHPStan now passes with no errors (level 9)
+
+#### PHPUnit Test Runtime
+- **Test Bootstrap Enhancement** - Fixed PHPUnit test failures by loading stub files at runtime
+  - Updated `tests/bootstrap.php` to require all GEMVC framework stub files
+  - Tests now pass successfully (87 tests, 200 assertions)
+  - All 18 previous runtime errors resolved
+
+#### Type Safety Improvements
+- **TraceKitProvider Type Narrowing** - Fixed type narrowing issues in `flush()` method
+  - Improved array access type safety for OTLP payload structure
+  - Added proper type assertions for nested array access
+  - Fixed string casting issues in debug logging
+  - Enhanced type hints in `TraceKitInit` constructor parameters
+
+### Changed
+
+- **PHPStan Configuration** - Added `bootstrapFiles` configuration to `phpstan.neon` for stub file loading
+- **Test Bootstrap** - Enhanced `tests/bootstrap.php` to load framework stubs before test execution
+
+---
+
 ## [2.0.0] - 2026-01-14
 
 ### Added
@@ -245,6 +281,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Version History
 
+- **2.1.1** (2026-01-26) - PHPStan & PHPUnit Bug Fixes
 - **2.0.0** (2026-01-14) - ApiCall Batching & OpenSwoole Compatibility
 - **1.1.0** (2026-01-03) - CLI Setup Wizard
 - **1.0.0** (2026-01-01) - Initial release

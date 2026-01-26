@@ -387,11 +387,24 @@ For complete API documentation, see the [GEMVC APM Contracts README](vendor/gemv
 composer test
 ```
 
+All tests pass successfully (87 tests, 200 assertions). The test suite includes stub files for GEMVC framework classes to enable independent testing without requiring the full framework installation.
+
 ### Code Quality
 
 ```bash
 composer phpstan
 ```
+
+PHPStan passes with no errors at level 9. Stub files for GEMVC framework classes are automatically loaded via `phpstan.neon` configuration for static analysis.
+
+### Stub Files
+
+This package includes stub files in the `stubs/` directory for GEMVC framework classes. These stubs serve two purposes:
+
+1. **PHPStan Static Analysis** - Loaded via `phpstan.neon` bootstrap configuration
+2. **PHPUnit Test Execution** - Loaded via `tests/bootstrap.php` for runtime testing
+
+The stub files provide minimal implementations with correct method signatures and type hints, allowing the package to be analyzed and tested independently.
 
 ## ⚖️ License
 

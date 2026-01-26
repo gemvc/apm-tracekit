@@ -6,4 +6,12 @@ parameters:
         - vendor
     ignoreErrors: []
     tmpDir: .phpstan-cache
+    bootstrapFiles:
+        - stubs/Gemvc/Http/Request.php
+        - stubs/Gemvc/Helper/ProjectHelper.php
+        - stubs/Gemvc/CLI/Command.php
+        - stubs/Gemvc/CLI/Commands/CliBoxShow.php
+        - stubs/Gemvc/Http/JsonResponse.php
+        - stubs/Gemvc/Http/AsyncApiCall.php
+        - stubs/Gemvc/Http/Response.php
 

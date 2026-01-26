@@ -723,23 +723,44 @@ class TraceKitProvider extends AbstractApm
             $payload = $this->buildTracePayload();
             
             // #region agent log
-            $hasResourceSpans = is_array($payload) && isset($payload['resourceSpans']);
-            $resourceSpansCount = $hasResourceSpans && is_array($payload['resourceSpans']) ? count($payload['resourceSpans']) : 0;
+            $resourceSpans = $payload['resourceSpans'] ?? null;
+            $hasResourceSpans = is_array($resourceSpans) && !empty($resourceSpans);
+            $resourceSpansCount = $hasResourceSpans ? count($resourceSpans) : 0;
             $spansCount = 0;
-            if ($hasResourceSpans && isset($payload['resourceSpans'][0]['scopeSpans'][0]['spans'])) {
-                $spansCount = count($payload['resourceSpans'][0]['scopeSpans'][0]['spans']);
+            if ($hasResourceSpans && isset($resourceSpans[0]) && is_array($resourceSpans[0])) {
+                /** @var array<string, mixed> $firstResourceSpan */
+                $firstResourceSpan = $resourceSpans[0];
+                if (isset($firstResourceSpan['scopeSpans']) && is_array($firstResourceSpan['scopeSpans']) && isset($firstResourceSpan['scopeSpans'][0]) && is_array($firstResourceSpan['scopeSpans'][0])) {
+                    /** @var array<string, mixed> $firstScopeSpan */
+                    $firstScopeSpan = $firstResourceSpan['scopeSpans'][0];
+                    if (isset($firstScopeSpan['spans']) && is_array($firstScopeSpan['spans'])) {
+                        $spansCount = count($firstScopeSpan['spans']);
+                    }
+                }
             }
             $serviceName = null;
-            if ($hasResourceSpans && isset($payload['resourceSpans'][0]['resource']['attributes'])) {
-                foreach ($payload['resourceSpans'][0]['resource']['attributes'] as $attr) {
-                    if (($attr['key'] ?? null) === 'service.name') {
-                        $serviceName = $attr['value']['stringValue'] ?? null;
-                        break;
+            if ($hasResourceSpans && isset($resourceSpans[0]) && is_array($resourceSpans[0])) {
+                /** @var array<string, mixed> $firstResourceSpan */
+                $firstResourceSpan = $resourceSpans[0];
+                $resource = $firstResourceSpan['resource'] ?? null;
+                if (is_array($resource) && isset($resource['attributes']) && is_array($resource['attributes'])) {
+                    /** @var array<int, array<string, mixed>> $attributes */
+                    $attributes = $resource['attributes'];
+                    foreach ($attributes as $attr) {
+                        /** @var array<string, mixed> $attr */
+                        if (($attr['key'] ?? null) === 'service.name') {
+                            $value = $attr['value'] ?? null;
+                            if (is_array($value) && isset($value['stringValue']) && is_string($value['stringValue'])) {
+                                $serviceName = $value['stringValue'];
+                            }
+                            break;
+                        }
                     }
                 }
             }
             if (ProjectHelper::isDevEnvironment()) {
-                error_log("DEBUG TRACE PAYLOAD: Empty=" . (empty($payload)?'yes':'no') . ", Spans=" . $spansCount . ", ServiceName=" . ($serviceName??'null'));
+                $serviceNameStr = is_string($serviceName) ? $serviceName : 'null';
+                error_log("DEBUG TRACE PAYLOAD: Empty=" . (empty($payload)?'yes':'no') . ", Spans=" . $spansCount . ", ServiceName=" . $serviceNameStr);
             }
             // #endregion
             
