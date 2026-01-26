@@ -273,6 +273,9 @@ class TraceKitProvider extends AbstractApm
         
         // Disable if no API key
         if (empty($this->apiKey)) {
+            if (ProjectHelper::isDevEnvironment()) {
+                error_log("TraceKit: Disabled - no API key set in environment variables");
+            }
             $this->enabled = false;
         }
     }
@@ -285,6 +288,9 @@ class TraceKitProvider extends AbstractApm
     protected function initializeRootTrace(): void
     {
         if ($this->request === null) {
+            if (ProjectHelper::isDevEnvironment()) {
+                error_log("TraceKit: Root trace not initialized - no request object");
+            }
             return;
         }
         
@@ -293,13 +299,14 @@ class TraceKitProvider extends AbstractApm
             if (ProjectHelper::isDevEnvironment() && !defined('PHPUNIT_TEST')) {
                 error_log("TraceKit: Initialized and enabled for service: " . $this->request->getServiceName() . '/' . $this->request->getMethodName());
             }
-            
+            $serviceName = $this->request->getServiceName();
+            $methodName = $this->request->getMethodName();
             // Build root span attributes from Request
             $rootAttributes = [
                 'http.method' => $this->request->getMethod(),
                 'http.url' => $this->request->getUri(),
                 'http.user_agent' => $this->request->getHeader('User-Agent') ?? 'unknown',
-                'http.route' => $this->request->getServiceName() . '/' . $this->request->getMethodName(),
+                'http.route' => $serviceName . '/' . $methodName,
             ];
             
             // Optionally include request body if enabled
@@ -321,7 +328,7 @@ class TraceKitProvider extends AbstractApm
             }
             
             $traceId = is_string($this->rootSpan['trace_id'] ?? null) ? $this->rootSpan['trace_id'] : 'N/A';
-            if (ProjectHelper::isDevEnvironment() && !defined('PHPUNIT_TEST')) {
+            if (ProjectHelper::isDevEnvironment()) {
                 error_log("TraceKit: Root span started - Trace ID: " . substr($traceId, 0, 16) . "...");
             }
             
@@ -715,6 +722,27 @@ class TraceKitProvider extends AbstractApm
             // Build trace payload
             $payload = $this->buildTracePayload();
             
+            // #region agent log
+            $hasResourceSpans = is_array($payload) && isset($payload['resourceSpans']);
+            $resourceSpansCount = $hasResourceSpans && is_array($payload['resourceSpans']) ? count($payload['resourceSpans']) : 0;
+            $spansCount = 0;
+            if ($hasResourceSpans && isset($payload['resourceSpans'][0]['scopeSpans'][0]['spans'])) {
+                $spansCount = count($payload['resourceSpans'][0]['scopeSpans'][0]['spans']);
+            }
+            $serviceName = null;
+            if ($hasResourceSpans && isset($payload['resourceSpans'][0]['resource']['attributes'])) {
+                foreach ($payload['resourceSpans'][0]['resource']['attributes'] as $attr) {
+                    if (($attr['key'] ?? null) === 'service.name') {
+                        $serviceName = $attr['value']['stringValue'] ?? null;
+                        break;
+                    }
+                }
+            }
+            if (ProjectHelper::isDevEnvironment()) {
+                error_log("DEBUG TRACE PAYLOAD: Empty=" . (empty($payload)?'yes':'no') . ", Spans=" . $spansCount . ", ServiceName=" . ($serviceName??'null'));
+            }
+            // #endregion
+            
             if (empty($payload)) {
                 // Clear spans even if payload is empty
                 $this->spans = [];
@@ -725,8 +753,23 @@ class TraceKitProvider extends AbstractApm
             // Add trace to batch queue (uses AbstractApm's batching system)
             $this->addTraceToBatch($payload);
             
+            // #region agent log
+            $isSwoole = extension_loaded('openswoole') || extension_loaded('swoole');
+            // #endregion
+            
             // Check if batch should be sent (time-based, uses APM_SEND_INTERVAL from base class)
             $this->sendBatchIfNeeded();
+
+            // In Swoole: force send batch immediately since sendBatchIfNeeded() skips in Swoole
+            $isSwoole = extension_loaded('openswoole') || extension_loaded('swoole');
+            if ($isSwoole) {
+                // #region agent log
+                if (ProjectHelper::isDevEnvironment()) {
+                    error_log("DEBUG FLUSH: Swoole detected, forcing batch send");
+                }
+                // #endregion
+                $this->forceSendBatch();
+            }
             
             // Clear spans for next trace
             $this->spans = [];
@@ -736,7 +779,9 @@ class TraceKitProvider extends AbstractApm
             self::clearCurrentInstance();
         } catch (\Throwable $e) {
             // Graceful degradation
-            error_log("TraceKit: Failed to flush traces: " . $e->getMessage());
+            if (ProjectHelper::isDevEnvironment()) {
+                error_log("TraceKit: Failed to flush traces: " . $e->getMessage() . " in " . $e->getFile() . ":" . $e->getLine());
+            }
         }
     }
     
