@@ -1,3 +1,4 @@
+![gemvc-tracekit](https://github.com/user-attachments/assets/cfe7e861-5c83-4d5b-b07e-dc71de94e1a8)
 # Release Notes
 
 ## Version 2.1.2 - Swoole Root Span Fix
