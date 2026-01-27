@@ -5,6 +5,31 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.2] - 2026-01-27
+
+### Fixed
+
+#### Swoole Root Span Completion
+- **Root Span Ending in Swoole** - Fixed critical issue where root spans were not being properly closed in Swoole/OpenSwoole environments
+  - **Problem**: PHP's `register_shutdown_function()` is not request-scoped in Swoole workers, so `flushOnShutdown()` is not guaranteed to run per HTTP request
+  - **Impact**: Root spans without child spans (e.g., simple Index/index requests with no DB calls) would never get `end_time` and `duration`, resulting in empty trace payloads (Spans=0)
+  - **Solution**: In `flush()` method, explicitly end the root span before building the payload when Swoole is detected
+  - **Implementation**:
+    - Detects Swoole/OpenSwoole extension at runtime using `extension_loaded()`
+    - Retrieves HTTP response code from request object's `_http_response_code` property (with fallback to 200)
+    - Calls `endSpan()` on root span with status code and appropriate status
+    - Ensures root span has `end_time` and `duration` before `buildTracePayload()` is called
+  - **Result**: All requests in Swoole environments now produce complete trace payloads, including simple requests without child spans
+
+### Changed
+
+- **Debug Logging Reorganization** - Improved debug logging section in `flush()` method
+  - Moved debug logging after payload building for better organization
+  - Updated comments for clarity ("Debug logging (dev environment only)")
+  - Maintains dev environment only logging behavior
+
+---
+
 ## [2.1.1] - 2026-01-26
 
 ### Fixed
@@ -281,6 +306,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Version History
 
+- **2.1.2** (2026-01-27) - Swoole Root Span Fix
 - **2.1.1** (2026-01-26) - PHPStan & PHPUnit Bug Fixes
 - **2.0.0** (2026-01-14) - ApiCall Batching & OpenSwoole Compatibility
 - **1.1.0** (2026-01-03) - CLI Setup Wizard

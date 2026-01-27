@@ -719,10 +719,39 @@ class TraceKitProvider extends AbstractApm
         }
         
         try {
+            // In Swoole environment, explicitly end the root span before building payload.
+            // PHP's register_shutdown_function is not request-scoped in Swoole workers,
+            // so flushOnShutdown() is not guaranteed to run per HTTP request.
+            // That means the root span would otherwise never get end_time and duration,
+            // and requests without child spans (e.g. Index/index with no DB calls)
+            // would produce an empty payload (Spans=0).
+            $isSwoole = extension_loaded('openswoole') || extension_loaded('swoole');
+            if ($isSwoole && !empty($this->rootSpan)) {
+                try {
+                    $statusCode = 200;
+                    if ($this->request !== null && property_exists($this->request, '_http_response_code')) {
+                        /** @var mixed $codeRaw */
+                        $codeRaw = $this->request->_http_response_code;
+                        if (is_int($codeRaw)) {
+                            $statusCode = $codeRaw;
+                        }
+                    }
+                    $this->endSpan(
+                        $this->rootSpan,
+                        ['http.status_code' => $statusCode],
+                        self::determineStatusFromHttpCode($statusCode)
+                    );
+                } catch (\Throwable $e) {
+                    if (ProjectHelper::isDevEnvironment()) {
+                        error_log("TraceKit: Failed to end root span in flush (Swoole): " . $e->getMessage());
+                    }
+                }
+            }
+
             // Build trace payload
             $payload = $this->buildTracePayload();
             
-            // #region agent log
+            // Debug logging (dev environment only)
             $resourceSpans = $payload['resourceSpans'] ?? null;
             $hasResourceSpans = is_array($resourceSpans) && !empty($resourceSpans);
             $resourceSpansCount = $hasResourceSpans ? count($resourceSpans) : 0;
@@ -774,21 +803,15 @@ class TraceKitProvider extends AbstractApm
             // Add trace to batch queue (uses AbstractApm's batching system)
             $this->addTraceToBatch($payload);
             
-            // #region agent log
-            $isSwoole = extension_loaded('openswoole') || extension_loaded('swoole');
-            // #endregion
-            
             // Check if batch should be sent (time-based, uses APM_SEND_INTERVAL from base class)
             $this->sendBatchIfNeeded();
 
             // In Swoole: force send batch immediately since sendBatchIfNeeded() skips in Swoole
             $isSwoole = extension_loaded('openswoole') || extension_loaded('swoole');
             if ($isSwoole) {
-                // #region agent log
                 if (ProjectHelper::isDevEnvironment()) {
                     error_log("DEBUG FLUSH: Swoole detected, forcing batch send");
                 }
-                // #endregion
                 $this->forceSendBatch();
             }
             

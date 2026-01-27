@@ -1,5 +1,92 @@
 # Release Notes
 
+## Version 2.1.2 - Swoole Root Span Fix
+
+**Release Date:** 2026-01-27
+
+### Overview
+
+This patch release fixes a critical issue in Swoole/OpenSwoole environments where root spans were not being properly closed, resulting in empty trace payloads for requests without child spans. The fix ensures root spans are explicitly ended before building the trace payload in Swoole environments.
+
+### What's Fixed
+
+#### Swoole Root Span Completion
+
+- **Root Span Ending in Swoole** - Fixed issue where root spans were not getting `end_time` and `duration` in Swoole/OpenSwoole environments
+  - **Problem**: PHP's `register_shutdown_function()` is not request-scoped in Swoole workers, so `flushOnShutdown()` is not guaranteed to run per HTTP request
+  - **Impact**: Root spans without child spans (e.g., simple Index/index requests with no DB calls) would never get completed, resulting in empty trace payloads (Spans=0)
+  - **Solution**: In `flush()` method, explicitly end the root span before building the payload when Swoole is detected
+  - **Implementation**: 
+    - Detects Swoole/OpenSwoole extension at runtime
+    - Retrieves HTTP response code from request object's `_http_response_code` property
+    - Calls `endSpan()` on root span with status code and appropriate status
+    - Ensures root span has `end_time` and `duration` before payload building
+  - **Result**: All requests in Swoole environments now produce complete trace payloads, including simple requests without child spans
+
+#### Code Improvements
+
+- **Debug Logging Reorganization** - Improved debug logging section in `flush()` method
+  - Moved debug logging after payload building for better organization
+  - Updated comments for clarity
+  - Maintains dev environment only logging
+
+### Technical Details
+
+#### Swoole Environment Detection
+
+The fix detects Swoole environments using:
+```php
+$isSwoole = extension_loaded('openswoole') || extension_loaded('swoole');
+```
+
+#### Root Span Completion Logic
+
+When Swoole is detected and a root span exists:
+1. Attempts to retrieve HTTP response code from `$request->_http_response_code` property
+2. Defaults to status code 200 if not available
+3. Calls `endSpan()` with:
+   - Root span data
+   - HTTP status code attribute
+   - Status determined from HTTP code (OK or ERROR)
+4. Ensures root span is completed before `buildTracePayload()` is called
+
+#### Why This Fix Was Needed
+
+In traditional PHP-FPM/Apache environments:
+- `register_shutdown_function()` runs reliably after each request
+- `flushOnShutdown()` ensures root span is ended before flush
+
+In Swoole/OpenSwoole environments:
+- Workers are long-lived and handle multiple requests
+- `register_shutdown_function()` is not request-scoped
+- `flushOnShutdown()` may not run for every request
+- Root spans without child spans would remain incomplete
+
+### Migration Guide
+
+**Upgrading from 2.1.1 or earlier** - No migration required. This is a bug fix release with no breaking changes.
+
+**For Swoole Users:**
+- This fix automatically applies when Swoole/OpenSwoole extension is detected
+- No configuration changes required
+- Simple requests without child spans will now be properly traced
+
+### Breaking Changes
+
+None - This is a patch release with only bug fixes.
+
+### Testing
+
+- **Swoole Compatibility** - Verified root span completion in Swoole environments
+- **Backward Compatibility** - Non-Swoole environments continue to work as before
+- **Edge Cases** - Handles missing response code gracefully (defaults to 200)
+
+### Changelog
+
+See CHANGELOG.md for detailed changelog.
+
+---
+
 ## Version 2.1.1 - PHPStan & PHPUnit Bug Fixes
 
 **Release Date:** 2026-01-26
